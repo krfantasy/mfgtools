@@ -14,4 +14,4 @@ CMakeCache.txt
 *.clst
 *.snap
 node_modules
-build
+build.worktrees/

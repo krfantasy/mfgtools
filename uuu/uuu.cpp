@@ -751,8 +751,9 @@ bool enable_vt_mode()
 	DWORD dwMode = 0;
 	if (!GetConsoleMode(hOut, &dwMode))
 	{
-		clean_vt_color();
-		return false;
+		// stdout is not a console (redirected to file or pipe, e.g. QProcess).
+		// VT processing isn't applicable — don't warn, don't force verbose.
+		return true;
 	}
 
 	dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;

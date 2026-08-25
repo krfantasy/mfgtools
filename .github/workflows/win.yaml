@@ -1,15 +1,14 @@
-name: Build with VS Studio
+name: Windows Build
 
 on:
   push:
     branches:
       - master
-    tags:
-      - uuu*
-  pull_request:
-    types:
-      - opened
-      - synchronize
+      - uuu-1.5.243-vtfix
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -17,41 +16,46 @@ jobs:
 
     strategy:
       matrix:
-        configuration: ['Debug', 'Release']
-        platform: ['x86', 'x64']
+        configuration: ["Debug", "Release"]
+        platform: ["x86", "x64"]
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-        submodules: true
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
 
-    - name: Set up Visual Studio
-      uses: microsoft/setup-msbuild@v1.1
+      - name: Set up Visual Studio
+        uses: microsoft/setup-msbuild@v1.1
 
-    - name: Build static solution
-      run: |
-        git fetch --tags --force # Retrieve annotated tags. #issue 290
-        msbuild /p:Configuration=${{ matrix.configuration }} /p:PlatformToolset=v143 /p:Platform=${{ matrix.platform }} /p:ForceImportBeforeCppTargets=${{ github.workspace }}/libusb.prop msvc/uuu-static-link.sln
+      - name: Build static solution
+        run: msbuild /p:Configuration=${{ matrix.configuration }} /p:PlatformToolset=v143 /p:Platform=${{ matrix.platform }} /p:ForceImportBeforeCppTargets=${{ github.workspace }}/libusb.prop msvc/uuu-static-link.sln
 
-    - name: Upload Build Artifacts
-      if: matrix.configuration == 'Release' && matrix.platform == 'x64'
-      uses: actions/upload-artifact@v4
-      with:
-        name: uuu.exe
-        path: msvc/x64/Release/uuu.exe
+      - name: Upload Build Artifacts
+        if: matrix.configuration == 'Release' && matrix.platform == 'x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: uuu.exe
+          path: msvc/x64/Release/uuu.exe
 
-    - name: Create or Update Release
-      if: matrix.configuration == 'Release' && matrix.platform == 'x64' && github.ref_type == 'tag'
-      uses: ncipollo/release-action@v1
-      with:
-        name: Release ${{ github.ref_name }}
-        tag: ${{ github.ref_name }}
-        commit: ${{ github.sha }}
-        allowUpdates: true
-        prerelease: true
-        artifacts: msvc/x64/Release/uuu.exe
+      - name: Rename binary for release
+        if: matrix.configuration == 'Release' && matrix.platform == 'x64' && github.event_name == 'push'
+        shell: pwsh
+        run: |
+          $short = "${{ github.sha }}".Substring(0, 7)
+          Copy-Item msvc/x64/Release/uuu.exe "msvc/x64/Release/uuu_commit-$short.exe"
+          "SHORT_SHA=$short" >> $env:GITHUB_ENV
 
-    - name: Build dynamic solution
-      run: msbuild /p:Configuration=${{ matrix.configuration }} /p:PlatformToolset=v143 /p:Platform=${{ matrix.platform }} /p:ForceImportBeforeCppTargets=${{ github.workspace }}/libusb.prop msvc/uuu.sln
+      - name: Release this commit
+        if: matrix.configuration == 'Release' && matrix.platform == 'x64' && github.event_name == 'push'
+        uses: ncipollo/release-action@v1
+        with:
+          name: uuu commit-${{ env.SHORT_SHA }}
+          tag: commit-${{ env.SHORT_SHA }}
+          commit: ${{ github.sha }}
+          allowUpdates: true
+          prerelease: true
+          artifacts: msvc/x64/Release/uuu_commit-${{ env.SHORT_SHA }}.exe
+
+      - name: Build dynamic solution
+        run: msbuild /p:Configuration=${{ matrix.configuration }} /p:PlatformToolset=v143 /p:Platform=${{ matrix.platform }} /p:ForceImportBeforeCppTargets=${{ github.workspace }}/libusb.prop msvc/uuu.sln

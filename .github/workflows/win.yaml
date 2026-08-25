@@ -40,18 +40,21 @@ jobs:
       - name: Rename binary for release
         if: matrix.configuration == 'Release' && matrix.platform == 'x64' && github.event_name == 'push'
         shell: pwsh
-        run: Copy-Item msvc/x64/Release/uuu.exe "msvc/x64/Release/uuu_${{ github.sha }}.exe"
+        run: |
+          $short = "${{ github.sha }}".Substring(0, 7)
+          Copy-Item msvc/x64/Release/uuu.exe "msvc/x64/Release/uuu_commit-$short.exe"
+          "SHORT_SHA=$short" >> $env:GITHUB_ENV
 
       - name: Release this commit
         if: matrix.configuration == 'Release' && matrix.platform == 'x64' && github.event_name == 'push'
         uses: ncipollo/release-action@v1
         with:
-          name: uuu ${{ github.sha }}
-          tag: ${{ github.sha }}
+          name: uuu commit-${{ env.SHORT_SHA }}
+          tag: commit-${{ env.SHORT_SHA }}
           commit: ${{ github.sha }}
           allowUpdates: true
           prerelease: true
-          artifacts: msvc/x64/Release/uuu_${{ github.sha }}.exe
+          artifacts: msvc/x64/Release/uuu_commit-${{ env.SHORT_SHA }}.exe
 
       - name: Build dynamic solution
         run: msbuild /p:Configuration=${{ matrix.configuration }} /p:PlatformToolset=v143 /p:Platform=${{ matrix.platform }} /p:ForceImportBeforeCppTargets=${{ github.workspace }}/libusb.prop msvc/uuu.sln
